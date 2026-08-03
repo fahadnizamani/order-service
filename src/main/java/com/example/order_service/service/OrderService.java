@@ -8,11 +8,18 @@ import com.example.order_service.dto.ProductResponse;
 import com.example.order_service.dto.UserResponse;
 import com.example.order_service.entity.Order;
 import com.example.order_service.entity.OrderItem;
+import com.example.order_service.kafka.OrderCreatedEvent;
+import com.example.order_service.kafka.OrderEventProducer;
+import com.example.order_service.kafka.OrderItemEvent;
 import com.example.order_service.repository.OrderRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
 
 @Service
 public class OrderService {
@@ -20,13 +27,16 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final ProductClient productClient;
     private final UserClient userClient;
+    private final OrderEventProducer orderEventProducer;
 
     public OrderService(OrderRepository orderRepository,
                         ProductClient productClient,
-                        UserClient userClient) {
+                        UserClient userClient,
+                        OrderEventProducer orderEventProducer) {
         this.orderRepository = orderRepository;
         this.productClient = productClient;
         this.userClient = userClient;
+        this.orderEventProducer = orderEventProducer;
     }
 
     @Transactional
@@ -81,8 +91,39 @@ public class OrderService {
         }
 
         order.setTotalAmount(total);
+        Order savedOrder = orderRepository.save(order);
+       // return orderRepository.save(order);
 
-        return orderRepository.save(order);
+        // Build OrderCreatedEvent START
+
+        List<OrderItemEvent> itemEvents =
+                savedOrder.getItems()
+                        .stream()
+                        .map(item -> new OrderItemEvent(
+                                item.getProductId(),
+                                item.getProductName(),
+                                item.getUnitPrice(),
+                                item.getQuantity(),
+                                item.getSubtotal()
+                        ))
+                        .toList();
+
+        OrderCreatedEvent event =
+                new OrderCreatedEvent(
+                        UUID.randomUUID().toString(),
+                        "ORDER_CREATED",
+                        1,
+                        Instant.now().toString(),
+                        savedOrder.getId(),
+                        savedOrder.getUserId(),
+                        savedOrder.getTotalAmount(),
+                        itemEvents
+                );
+
+        // Build OrderCreatedEvent END
+        orderEventProducer.sendOrderCreatedEvent(event);
+
+        return savedOrder;
     }
 
     @Transactional
