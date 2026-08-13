@@ -8,10 +8,14 @@ import com.example.order_service.dto.ProductResponse;
 import com.example.order_service.dto.UserResponse;
 import com.example.order_service.entity.Order;
 import com.example.order_service.entity.OrderItem;
+import com.example.order_service.entity.OutboxEvent;
 import com.example.order_service.kafka.OrderCreatedEvent;
 import com.example.order_service.kafka.OrderEventProducer;
 import com.example.order_service.kafka.OrderItemEvent;
 import com.example.order_service.repository.OrderRepository;
+import com.example.order_service.repository.OutboxEventRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,15 +32,21 @@ public class OrderService {
     private final ProductClient productClient;
     private final UserClient userClient;
     private final OrderEventProducer orderEventProducer;
+    private final OutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
 
     public OrderService(OrderRepository orderRepository,
                         ProductClient productClient,
                         UserClient userClient,
-                        OrderEventProducer orderEventProducer) {
+                        OrderEventProducer orderEventProducer,
+                        OutboxEventRepository outboxEventRepository,
+                        ObjectMapper objectMapper) {
         this.orderRepository = orderRepository;
         this.productClient = productClient;
         this.userClient = userClient;
         this.orderEventProducer = orderEventProducer;
+        this.outboxEventRepository = outboxEventRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -121,7 +131,35 @@ public class OrderService {
                 );
 
         // Build OrderCreatedEvent END
-        orderEventProducer.sendOrderCreatedEvent(event);
+        //orderEventProducer.sendOrderCreatedEvent(event);
+
+        try {
+
+            OutboxEvent outboxEvent = new OutboxEvent();
+
+            outboxEvent.setEventId(event.getEventId());
+            outboxEvent.setEventType(event.getEventType());
+            outboxEvent.setTopic("order-created");
+            outboxEvent.setPayload(objectMapper.writeValueAsString(event));
+            outboxEvent.setCreatedAt(LocalDateTime.now());
+            outboxEvent.setPublished(false);
+
+            outboxEventRepository.save(outboxEvent);
+
+            System.out.println(
+                    ">>> ORDER_CREATED event stored in OUTBOX. eventId="
+                            + event.getEventId()
+                            + ", orderId="
+                            + event.getOrderId()
+            );
+
+        } catch (JsonProcessingException e) {
+
+            throw new IllegalStateException(
+                    "Failed to serialize ORDER_CREATED event",
+                    e
+            );
+        }
 
         return savedOrder;
     }

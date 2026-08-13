@@ -1,7 +1,10 @@
 package com.example.order_service.kafka;
 
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
+
+import java.util.concurrent.CompletableFuture;
 
 @Component
 public class OrderEventProducer {
@@ -15,20 +18,19 @@ public class OrderEventProducer {
         this.kafkaTemplate = kafkaTemplate;
     }
 
-    public void sendOrderCreatedEvent(OrderCreatedEvent event) {
-
-        String key = event.getOrderId().toString();
+    public CompletableFuture<SendResult<String, OrderCreatedEvent>>
+    sendOrderCreatedEvent(OrderCreatedEvent event) {
 
         System.out.println(
-                ">>> Publishing ORDER_CREATED event. orderId="
+                "Publishing ORDER_CREATED event. orderId="
                         + event.getOrderId()
                         + ", eventId="
                         + event.getEventId()
         );
 
-        kafkaTemplate.send(
+        return kafkaTemplate.send(
                 ORDER_CREATED_TOPIC,
-                key,
+                String.valueOf(event.getOrderId()),
                 event
         );
     }
