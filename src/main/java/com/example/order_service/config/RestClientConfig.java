@@ -1,5 +1,6 @@
 package com.example.order_service.config;
 
+import org.springframework.boot.restclient.autoconfigure.RestClientBuilderConfigurer;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,17 +11,20 @@ import org.springframework.web.client.RestClient;
 public class RestClientConfig {
 
     // Default RestClient.Builder
-    // Eureka will use this one.
     @Bean
     @Primary
-    public RestClient.Builder restClientBuilder() {
-        return RestClient.builder();
+    public RestClient.Builder restClientBuilder(
+            RestClientBuilderConfigurer configurer) {
+
+        return configurer.configure(RestClient.builder());
     }
 
-    // Used only when we want service-name based load balancing.
+    // Load-balanced + observable RestClient.Builder
     @Bean
     @LoadBalanced
-    public RestClient.Builder loadBalancedRestClientBuilder() {
-        return RestClient.builder();
+    public RestClient.Builder loadBalancedRestClientBuilder(
+            RestClientBuilderConfigurer configurer) {
+
+        return configurer.configure(RestClient.builder());
     }
 }
