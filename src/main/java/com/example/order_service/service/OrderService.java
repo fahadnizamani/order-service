@@ -57,7 +57,7 @@ public class OrderService {
 
         Order order = new Order();
         order.setUserId(userId);
-        order.setStatus("PENDING");
+        order.setStatus("PENDING_PAYMENT");
 
         BigDecimal total = BigDecimal.ZERO;
 
